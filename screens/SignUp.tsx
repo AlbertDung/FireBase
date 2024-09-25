@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView,Alert } from 'react-native';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { Feather, FontAwesome } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -17,18 +17,52 @@ const SignupScreen: React.FC = () => {
   const navigation = useNavigation();
 
   const handleSignup = async () => {
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    if (!email.trim() && !password.trim() && !confirmPassword.trim()) {
+      setError('Vui lòng điền đầy đủ thông tin đăng ký.');
       return;
     }
+    if (!email.trim()) {
+      setError('Vui lòng nhập địa chỉ email của bạn.');
+      return;
+    }
+    if (!password.trim()) {
+      setError('Vui lòng nhập mật khẩu.');
+      return;
+    }
+    if (!confirmPassword.trim()) {
+      setError('Vui lòng xác nhận lại mật khẩu.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Mật khẩu và xác nhận mật khẩu không khớp. Vui lòng kiểm tra lại.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Mật khẩu phải có ít nhất 6 ký tự.');
+      return;
+    }
+    
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      // Handle successful signup (e.g., navigate to home screen)
-      navigation.navigate('Login' as never)
-    } catch (error) {
-      setError('Failed to create account');
+      Alert.alert(
+        'Đăng ký thành công',
+        'Tài khoản của bạn đã được tạo thành công. Bạn có thể đăng nhập ngay bây giờ.',
+        [{ text: 'OK', onPress: () => navigation.navigate('Login' as never) }]
+      );
+    } catch (error:any) {
+      if (error.code === 'auth/email-already-in-use') {
+        setError('Email này đã được sử dụng. Vui lòng chọn một email khác hoặc đăng nhập.');
+      } else if (error.code === 'auth/invalid-email') {
+        setError('Email không hợp lệ. Vui lòng nhập một địa chỉ email hợp lệ.');
+      } else if (error.code === 'auth/weak-password') {
+        setError('Mật khẩu quá yếu. Vui lòng chọn một mật khẩu mạnh hơn.');
+      } else {
+        setError('Đăng ký thất bại. Vui lòng thử lại sau.');
+      }
     }
   };
+
+
   const handleSocialSignup = (platform: string) => {
     // Implement social signup logic here
     console.log(`Sign up with ${platform}`);

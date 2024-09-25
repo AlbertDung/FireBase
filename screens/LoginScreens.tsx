@@ -1,12 +1,22 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform,ScrollView ,Image } from 'react-native';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import React, { useState,useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform,ScrollView ,Image,Alert  } from 'react-native';
+import { getAuth, signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider,signInWithRedirect,signInWithCredential, FacebookAuthProvider  } from 'firebase/auth';
 import { initializeApp } from 'firebase/app';
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
+
+import * as Google from 'expo-auth-session/providers/google';
+import * as Facebook from 'expo-auth-session/providers/facebook';
+import * as AuthSession from 'expo-auth-session'; // Import AuthSession
+
+//import { googleProvider } from '../firebaseConfig';
+import { GoogleSignin, statusCodes,GoogleSigninButton, isSuccessResponse, isErrorWithCode } from 
+    '@react-native-google-signin/google-signin';
+
+
 
 // Initialize Firebase
 const firebaseConfig = {
@@ -29,14 +39,118 @@ const LoginScreen: React.FC = () => {
   const [error, setError] = useState('');
   const navigation = useNavigation();
 
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: '38708519546-0unbe8ldklkk5p7sg75a4572nuvr6omm.apps.googleusercontent.com ',
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      const credential = GoogleAuthProvider.credential(id_token);
+      signInWithCredential(auth, credential).then(() => {
+        navigation.navigate('Home' as never);
+      }).catch((err) => {
+        setError('Google Sign-In failed. Try again.');
+      });
+    }
+  }, [response]);
+
   const handleLogin = async () => {
+    if (!email.trim() && !password.trim()) {
+      setError('Vui lòng nhập email và mật khẩu.');
+      return;
+    }
+    if (!email.trim()) {
+      setError('Vui lòng nhập email của bạn.');
+      return;
+    }
+    if (!password.trim()) {
+      setError('Vui lòng nhập mật khẩu của bạn.');
+      return;
+    }
+    
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigation.navigate('Home' as never); // Thay đổi 'HomeScreen' thành 'Home'
-    } catch (error) {
-      setError('Invalid email or password');
+      navigation.navigate('Home' as never);
+    } catch (error:any) {
+      if (error.code === 'auth/user-not-found') {
+        setError('Không tìm thấy tài khoản với email này. Vui lòng kiểm tra lại hoặc đăng ký mới.');
+      } else if (error.code === 'auth/wrong-password') {
+        setError('Mật khẩu không chính xác. Vui lòng thử lại.');
+      } else if (error.code === 'auth/invalid-email') {
+        setError('Email không hợp lệ. Vui lòng nhập một địa chỉ email hợp lệ.');
+      } else if (error.code === 'auth/too-many-requests') {
+        setError('Quá nhiều lần thử không thành công. Vui lòng thử lại sau.');
+      } else {
+        setError('Đăng nhập thất bại. Vui lòng thử lại sau.');
+      }
     }
   };
+  // const handleGoogleLogin = async () => {
+  //   try {
+  //     const result = await signInWithPopup(auth, googleProvider);
+  //     console.log('Đăng nhập Google thành công:', result.user);
+  //     navigation.navigate('Home' as never);
+  //   } catch (error) {
+  //     console.error('Lỗi đăng nhập Google:', error);
+  //     setError('Đăng nhập Google thất bại');
+  //   }
+  // };
+
+//   const signIn = async () => {
+//     try {
+//       await GoogleSignin.hasPlayServices();
+//       const response = await GoogleSignin.signIn();
+//       if (isSuccessResponse(response)) {
+//         useState({ userInfo: response.data });
+//       } else {
+//         // sign in was cancelled by user
+//       }
+//     } catch (error) {
+//       if (isErrorWithCode(error)) {
+//         switch (error.code) {
+//           case statusCodes.IN_PROGRESS:
+//             // operation (eg. sign in) already in progress
+//             break;
+//           case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+//             // Android only, play services not available or outdated
+//             break;
+//           default:
+//           // some other error happened
+//         }
+//       } else {
+//         // an error that's not related to google sign in occurred
+//       }
+//     }
+// };
+
+
+
+// Facebook OAuth Config
+const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({
+  clientId: '1256945355492169', // Thay thế bằng ID ứng dụng Facebook của bạn
+  redirectUri: AuthSession.makeRedirectUri(),
+});
+
+const handleFacebookLogin = async () => {
+  try {
+    const result = await fbPromptAsync();
+    if (result?.type === 'success') {
+      const { access_token } = result.params;
+      const credential = FacebookAuthProvider.credential(access_token);
+      await signInWithCredential(auth, credential);
+
+      // Facebook login success, navigate to Welcome screen
+      Alert.alert('Đăng nhập thành công với Facebook!');
+      navigation.navigate('Home' as never);  // Ensure 'Welcome' is a valid route in your navigation
+    }
+  } catch (error: any) {
+    Alert.alert('Đăng nhập Facebook thất bại', error.message);
+  }
+};
+const handleGoogleLogin = () => {
+  promptAsync();
+};
   const handleSocialLogin = (platform: string) => {
     // Implement social login logic here
     console.log(`Login with ${platform}`);
@@ -81,10 +195,10 @@ const LoginScreen: React.FC = () => {
               <Text style={styles.buttonText}>Log In</Text>
             </TouchableOpacity>
             <View style={styles.socialLoginContainer}>
-              <TouchableOpacity style={styles.socialButton} onPress={() => handleSocialLogin('google')}>
+              <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
                 <FontAwesome name="google" size={24} color="#DB4437" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.socialButton} onPress={() => handleSocialLogin('facebook')}>
+              <TouchableOpacity style={styles.socialButton} onPress={handleFacebookLogin}>
                 <FontAwesome name="facebook" size={24} color="#4267B2" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.socialButton} onPress={() => handleSocialLogin('github')}>
